@@ -1,0 +1,316 @@
+BIG DATA ANALYTICS PRACTICALS — MASTER FILE
+
+WINDOWS BEGINNER GUIDE
+
+This file contains all 8 practicals in one place. Copy each code section
+into the appropriate file or tool. Commands are written for Windows
+PowerShell unless stated.
+
+IMPORTANT: - Hadoop commands require Hadoop installed and configured,
+with HDFS running. - Python programs require Python installed. Check
+with: python –version - MongoDB commands run in MongoDB Shell (mongosh),
+not Python or PowerShell. - R programs run in RStudio or the R
+console. - Do not run every section as one program. Each practical has
+its own steps. - For the Python programs, save each code section under
+the filename shown. - Your instructor may require specific datasets,
+output formats, or a specific implementation. Follow your instructor’s
+requirements if they differ.
+
+============================================================ Q1. HADOOP
+HDFS COMMANDS
+============================================================
+
+PURPOSE: Create an HDFS folder, upload a local file, display it,
+download it, move/copy it, and delete it.
+
+WINDOWS SETUP / EXECUTION: 1. Open the Hadoop terminal/environment used
+in your lab. Hadoop on Windows often requires a preconfigured
+environment or WSL/Linux; these commands may not work in plain
+PowerShell unless Hadoop is configured and its bin folder is on PATH. 2.
+Start HDFS from the configured Hadoop shell: start-dfs.sh On a
+Windows-native setup, use the start scripts supplied by that
+installation. 3. Check running Java processes: jps Look for NameNode and
+DataNode (and possibly SecondaryNameNode). 4. Make a local sample file
+in PowerShell: “Hello Hadoop” | Set-Content data.txt 5. Run the HDFS
+commands below one by one.
+
+COMMANDS: hadoop fs -ls / hadoop fs -mkdir -p /user/student hadoop fs
+-put data.txt /user/student/ hadoop fs -cat /user/student/data.txt
+hadoop fs -get /user/student/data.txt . hadoop fs -mv
+/user/student/data.txt /user/student/newdata.txt hadoop fs -cp
+/user/student/newdata.txt /user/student/copy.txt hadoop fs -rm
+/user/student/copy.txt hadoop fs -rm -r /user/student
+
+NOTES: - The final command deletes the HDFS folder and its contents; run
+it only after you have finished demonstrating the other commands. - If
+start-dfs.sh is not recognized, use the startup method provided by your
+Hadoop installation. Do not format the NameNode unless this is a new
+setup and your instructor specifically tells you to; formatting can make
+existing HDFS metadata/data inaccessible.
+
+============================================================ Q2. WORD
+COUNT USING MAPREDUCE IN PYTHON (mrjob)
+============================================================
+
+PURPOSE: Count how many times each word occurs in a text file using a
+Mapper and Reducer.
+
+INSTALL (PowerShell): python -m pip install mrjob
+
+CREATE FILE: q2.py
+
+from mrjob.job import MRJob
+
+class WordCount(MRJob): # Mapper: emit each word with a count of 1. def
+mapper(self, _, line): for word in line.lower().split(): yield word, 1
+
+    # Reducer: add the counts for each word.
+    def reducer(self, word, counts):
+        yield word, sum(counts)
+
+if name == ‘main’: WordCount.run()
+
+CREATE INPUT FILE: input.txt
+
+hello world hello python world python
+
+RUN (from the folder containing q2.py and input.txt): python q2.py
+input.txt
+
+EXPECTED RESULT (order may vary): “hello” 2 “python” 2 “world” 2
+
+NOTE: - A real mrjob MapReduce program requires mapper() and reducer()
+methods. If your instructor says not to define your own functions, ask
+whether a built-in Counter demonstration is acceptable; Counter alone is
+word counting, not MapReduce. - This simple program splits on
+whitespace, so punctuation is treated as part of a word.
+
+============================================================ Q3.
+FLajolet–Martin DISTINCT-COUNT ESTIMATION IN PYTHON
+============================================================
+
+PURPOSE: Estimate the number of distinct items in a stream using hashing
+and trailing zeros.
+
+CREATE FILE: q3.py
+
+import hashlib
+
+data = [“apple”, “banana”, “apple”, “mango”, “grape”, “banana”,
+“orange”] R = 0
+
+for item in data: h = int(hashlib.sha256(item.encode()).hexdigest(), 16)
+binary = bin(h)[2:] zeros = len(binary) - len(binary.rstrip(“0”)) R =
+max(R, zeros)
+
+print(“Estimated distinct elements:”, 2 ** R) print(“Actual distinct
+elements:”, len(set(data)))
+
+RUN: python q3.py
+
+HOW IT WORKS: 1. Hash each item. 2. Convert the hash to binary. 3. Count
+trailing zeros. 4. Keep the maximum count R. 5. Estimate using 2**R.
+
+NOTE: This is the basic single-register Flajolet–Martin estimate. It can
+be inaccurate on small data; the actual count is printed for comparison.
+
+============================================================ Q4. DGIM
+ALGORITHM IN PYTHON
+============================================================
+
+PURPOSE: Estimate the number of 1 bits in a recent window of a binary
+stream using buckets.
+
+CREATE FILE: q4.py
+
+Each bucket is [size, timestamp].
+
+stream = [1, 0, 1, 1, 0, 1, 0, 1] N = 8 buckets = []
+
+for t, bit in enumerate(stream, 1): # Remove buckets whose timestamps
+are outside the last N bits. buckets = [b for b in buckets if b[1] > t -
+N]
+
+    if bit == 1:
+        buckets.insert(0, [1, t])
+
+        # While there are more than two buckets of a size, merge the two
+        # oldest buckets of that size into one bucket of double size.
+        while True:
+            sizes = sorted(set(b[0] for b in buckets))
+            merged = False
+
+            for size in sizes:
+                indexes = [i for i, b in enumerate(buckets) if b[0] == size]
+
+                if len(indexes) > 2:
+                    # Buckets are newest-first; merge the two oldest.
+                    i_old = indexes[-1]
+                    i_next_old = indexes[-2]
+                    buckets[i_next_old] = [
+                        size * 2, buckets[i_next_old][1]
+                    ]
+                    buckets.pop(i_old)
+                    merged = True
+                    break
+
+            if not merged:
+                break
+
+Buckets are newest-first. Count all but the oldest fully, and half the oldest.
+
+if buckets: estimate = sum(b[0] for b in buckets[:-1]) + buckets[-1][0]
+/ 2 else: estimate = 0
+
+print(“Buckets (size, timestamp):”, buckets) print(“Estimated number of
+1s in last”, N, “bits:”, estimate)
+
+RUN: python q4.py
+
+NOTE: This is a teaching implementation of DGIM’s bucket-merging idea.
+DGIM uses approximate counts; the oldest bucket is counted as half its
+size.
+
+============================================================ Q5. NOSQL
+FEATURES AND MONGODB CRUD
+============================================================
+
+NO-SQL FEATURES: - Schema flexibility - Horizontal scalability - High
+performance for suitable workloads - Document, key-value, column-family,
+and graph data models - Replication and high availability support
+
+WHERE TO RUN: Open MongoDB Shell (mongosh). Do not run these commands in
+Python or PowerShell.
+
+STEP 1 — Select the database: use college
+
+STEP 2 — Create a collection: db.createCollection(“students”)
+
+If the collection already exists, MongoDB may report that it already
+exists. You can continue.
+
+STEP 3 — CREATE / INSERT: db.students.insertMany([ {name: “Amit”, marks:
+80}, {name: “Raj”, marks: 75}, {name: “Priya”, marks: 90} ])
+
+STEP 4 — READ: db.students.find() db.students.find({marks: {$gt: 80}})
+
+STEP 5 — UPDATE: db.students.updateOne( {name: “Raj”}, {$set: {marks:
+95}} )
+
+STEP 6 — DELETE: db.students.deleteOne({name: “Raj”})
+
+STEP 7 — DISPLAY FINAL RECORDS: db.students.find()
+
+CRUD MEMORY TRICK: Create = insertOne()/insertMany() Read = find()
+Update = updateOne() Delete = deleteOne()
+
+NOTE: Repeatedly running insertMany() adds duplicate sample documents.
+If you need a fresh run, use a clean practice database or remove old
+sample records carefully.
+
+============================================================ Q6. FIVE
+VISUALIZATION TECHNIQUES IN R
+============================================================
+
+WHERE TO RUN: Open RStudio or the R console. Paste the code and click
+Run, or save it as q6.R and run it in RStudio.
+
+CREATE FILE: q6.R
+
+x <- c(10, 20, 30, 40, 50)
+
+barplot(x, main = “Bar Plot”) hist(x, main = “Histogram”) pie(x, main =
+“Pie Chart”) boxplot(x, main = “Box Plot”) plot(x, type = “o”, main =
+“Plot”)
+
+WHAT EACH FUNCTION DOES: barplot() = bar chart hist() = histogram pie()
+= pie chart boxplot() = box-and-whisker plot plot() = basic plot
+
+============================================================ Q7.
+REGRESSION IN R
+============================================================
+
+A. LINEAR REGRESSION
+
+CREATE / RUN IN RStudio: x <- c(1, 2, 3, 4, 5) y <- c(2, 4, 5, 4, 6)
+
+m <- lm(y ~ x) print(summary(m)) plot(x, y) abline(m, col = “red”)
+
+B. LOGISTIC REGRESSION
+
+x <- 1:6 y <- c(0, 0, 0, 1, 1, 1)
+
+m <- glm(y ~ x, family = binomial) p <- predict(m, type = “response”)
+print(p) plot(x, p, type = “b”, ylim = c(0, 1))
+
+C. MULTIPLE LINEAR REGRESSION
+
+x1 <- 1:5 x2 <- c(2, 4, 3, 5, 6) y <- c(5, 8, 9, 12, 15)
+
+m <- lm(y ~ x1 + x2) print(summary(m)) plot(y, predict(m), xlab =
+“Actual”, ylab = “Predicted”) abline(a = 0, b = 1, col = “red”)
+
+MEMORY TRICK: Linear = lm(y ~ x) Logistic = glm(y ~ x, family =
+binomial) Multiple = lm(y ~ x1 + x2)
+
+============================================================ Q8.
+GIRVAN–NEWMAN COMMUNITY DETECTION IN R
+============================================================
+
+PURPOSE: Find communities in a network using edge betweenness.
+
+FIRST TIME ONLY — install the package in R: install.packages(“igraph”)
+
+CREATE / RUN IN RStudio:
+
+library(igraph)
+
+Create an undirected graph from an edge list.
+
+edges <- c(“A”, “B”, “A”, “C”, “B”, “C”, “C”, “D”, “D”, “E”, “D”, “F”,
+“E”, “F”)
+
+g <- graph(edges, directed = FALSE)
+
+plot(g, main = “Original Network”)
+
+Girvan–Newman method: edge-betweenness community detection.
+
+communities <- cluster_edge_betweenness(g)
+
+print(communities) print(membership(communities)) plot(communities, g,
+main = “Detected Communities”)
+
+NOTE: Install igraph only once. On later runs, use library(igraph).
+cluster_edge_betweenness() performs the Girvan–Newman community
+detection method.
+
+============================================================ QUICK
+EXECUTION GUIDE
+============================================================
+
+HADOOP: Start HDFS using your lab’s configured Hadoop startup command,
+then run “hadoop fs” commands in the configured Hadoop terminal.
+
+PYTHON: Open PowerShell in the folder containing the file, then run:
+python q2.py python q3.py python q4.py For Q2, use: python q2.py
+input.txt
+
+MONGODB: Open mongosh and run the Q5 commands in order.
+
+R: Open RStudio, paste the code for Q6, Q7, or Q8, and click Run.
+Install igraph once before Q8.
+
+GITHUB + TINYURL: 1. Create a public GitHub repository, for example:
+bda-practicals. 2. Upload this master file to the repository. 3. Open
+the uploaded file and click “Raw” to get the plain-text URL. 4. Paste
+that Raw URL into TinyURL and create a short link. 5. On Windows
+PowerShell, display the file using: curl.exe -Ls “YOUR_TINYURL” This
+prints the text response in the terminal, provided the TinyURL redirects
+to the raw file. 6. If output is too long for one screen, add: curl.exe
+-Ls “YOUR_TINYURL” | more Press Space to move to the next page and Q to
+quit.
+
+SECURITY: Only use this approach for files you are comfortable making
+public. Do not upload passwords, API keys, personal information, or
+private files to a public repository.
